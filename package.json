@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "main": "proxy.js",
+  "bin": {
+    "caotaytang": "cli.js"
+  },
   "scripts": {
-    "start": "node proxy.js"
+    "start": "node proxy.js",
+    "cli": "node cli.js"
   },
   "dependencies": {
     "http-proxy": "^1.18.1"

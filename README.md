@@ -65,6 +65,23 @@ Open the dashboard: `http://127.0.0.1:9000`
 Body URL-rewrite patterns are auto-generated for every route (see **Scrubbing
 → Auto-generated**).
 
+### CLI
+
+Manage routes without opening the dashboard. Edits `config.json` directly;
+the running proxy picks up changes via `fs.watch`. Use `--reload` to also
+flush upstream keep-alive sockets.
+
+```bash
+node cli.js list
+node cli.js add concak.own_lab.htb https://example.com/
+node cli.js add concak.own_lab.htb https://example.com/ --reload
+node cli.js remove concak.own_lab.htb
+node cli.js reload
+```
+
+After `npm link` (or `npm install -g .`) the binary is also available as
+`caotaytang`. Honors `CONFIG_PATH` and `ADMIN_PORT` env vars.
+
 ### Hit the proxy
 
 ```bash
