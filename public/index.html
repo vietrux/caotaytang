@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>CAOTAYTANG · Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>CAOTAYTANG</h1>
+      <span class="status">
+        <span class="dot" id="conn"></span>
+        <span id="connText">connecting</span>
+      </span>
+      <span class="status" id="meta"></span>
+      <div style="flex: 1"></div>
+      <button
+        class="btn ghost"
+        id="reload-btn"
+        title="Re-read config from disk + flush upstream keep-alive sockets"
+      >
+        Reload proxy
+      </button>
+    </header>
+
+    <nav>
+      <button class="active" data-tab="home">Home</button>
+      <button data-tab="routes">Routes</button>
+      <button data-tab="scrub">Scrubbing</button>
+      <button data-tab="log">Live Log</button>
+    </nav>
+
+    <main>
+      <section id="tab-home">
+        <div class="panel">
+          <div class="hero">
+            <div class="logo">C</div>
+            <div>
+              <h2>CAOTAYTANG — Multi-vhost TLS Proxy + CDN Scrubber</h2>
+              <p>
+                Node reverse proxy that maps <code>Host</code> headers to upstream
+                origins and strips Cloudflare / CDN fingerprints from headers,
+                cookies, and HTML/JS bodies.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Quick start</h2>
+<pre class="code"><span class="c1"># 1. add wildcard DNS — dnsmasq</span>
+<span class="f">sudo</span> apt install dnsmasq
+<span class="f">echo</span> <span class="s">'address=/own_lab.htb/127.0.0.1'</span> | <span class="f">sudo</span> tee /etc/dnsmasq.d/lab.conf
+<span class="f">sudo</span> systemctl restart dnsmasq
+
+<span class="c1"># 2. cert with wildcard SAN</span>
+<span class="f">cd</span> certs
+<span class="f">openssl</span> req -x509 -newkey rsa:<span class="n">2048</span> -nodes -days <span class="n">825</span> \
+  -keyout mylab.key -out mylab.crt \
+  -subj <span class="s">"/CN=own_lab.htb"</span> \
+  -addext <span class="s">"subjectAltName=DNS:own_lab.htb,DNS:*.own_lab.htb"</span>
+
+<span class="c1"># 3. run</span>
+<span class="v">PORT</span>=<span class="n">8765</span> <span class="v">ADMIN_PORT</span>=<span class="n">9000</span> <span class="f">node</span> proxy.js
+
+<span class="c1"># 4. add route via dashboard</span>
+<span class="f">open</span> http://127.0.0.1:9000</pre>
+        </div>
+      </section>
+
+      <section id="tab-routes" style="display: none">
+        <div class="panel">
+          <h2>Vhost Routes</h2>
+          <p class="hint">
+            Host header → upstream URL. Exact match wins, then longest
+            <code>*.suffix</code> wildcard. Adding a route auto-generates body
+            URL-rewrite patterns (see Scrubbing tab → Auto-generated).
+          </p>
+
+          <div class="rt-grid">
+            <div class="head">Host</div>
+            <div class="head">Target</div>
+            <div class="head" aria-label="Remove"></div>
+            <div id="routes-body" style="display: contents"></div>
+          </div>
+
+          <div class="rt-grid add-row">
+            <input
+              type="text"
+              id="new-host"
+              aria-label="New vhost"
+              placeholder="*.own_lab.htb or exact.host"
+            />
+            <input
+              type="url"
+              id="new-target"
+              aria-label="Upstream URL"
+              placeholder="https://upstream.example.com"
+            />
+            <button class="btn icon" id="add-route" title="Add route" aria-label="Add route">+</button>
+          </div>
+
+          <div class="rt-grid two port-row">
+            <div class="field">
+              <label for="proxy-port">Proxy public port</label>
+              <input type="number" id="proxy-port" min="1" max="65535" />
+            </div>
+            <div class="field">
+              <label for="server-decoy">Server header decoy</label>
+              <input type="text" id="server-decoy" />
+            </div>
+          </div>
+          <p class="hint" style="margin-top: var(--s-3)">
+            Public port is used in auto-generated URL rewrites only — actual
+            listen port is set by <code>PORT</code> env var.
+          </p>
+        </div>
+      </section>
+
+      <section id="tab-scrub" style="display: none">
+        <div class="panel">
+          <h2>Body Scrubbing</h2>
+          <label class="chk">
+            <input type="checkbox" id="scrub-body" />
+            Enable body rewrite (forces <code>accept-encoding: identity</code>)
+          </label>
+          <p class="hint">
+            When off, only headers + cookies are scrubbed. Body passes through
+            untouched.
+          </p>
+        </div>
+
+        <div class="panel">
+          <h2>Strip Response Headers</h2>
+          <p class="hint">
+            Groups toggle whole categories on/off. Add ad-hoc entries to
+            <em>Custom</em>.
+          </p>
+          <div id="header-groups"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Strip Set-Cookie Names</h2>
+          <p class="hint">
+            Drop matching cookie names from upstream <code>Set-Cookie</code>.
+          </p>
+          <div id="cookie-groups"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Body Replacement Patterns</h2>
+          <p class="hint">
+            Per-group regex replacements. Auto-generated route rewrites are
+            appended automatically (read-only preview at bottom).
+          </p>
+          <div id="pattern-groups"></div>
+        </div>
+
+        <div class="panel">
+          <h2>
+            Auto-generated Route Rewrites
+            <span class="badge auto">live</span>
+          </h2>
+          <p class="hint">
+            Built from current routes + proxy port. Rebuilds on every save.
+            Each route produces 4 patterns covering:
+            <code>scheme://host</code>, <code>//host</code>, unicode-escaped
+            <code>//</code>, and bare hostname.
+          </p>
+          <div id="auto-patterns"></div>
+        </div>
+      </section>
+
+      <section id="tab-log" style="display: none">
+        <div class="panel">
+          <h2>Live Request Log</h2>
+          <div class="row center">
+            <button class="btn ghost" id="clear-log">Clear view</button>
+            <label class="chk" style="flex: 0 0 auto">
+              <input type="checkbox" id="autoscroll" checked />
+              Auto-scroll
+            </label>
+          </div>
+          <pre class="log" id="log"></pre>
+        </div>
+      </section>
+    </main>
+
+    <div class="save-bar" id="save-bar">
+      <span class="hint">Unsaved changes</span>
+      <div style="flex: 1"></div>
+      <button class="btn ghost" id="discard">Discard</button>
+      <button class="btn" id="save">Save &amp; reload proxy</button>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <script type="module" src="/js/main.js"></script>
+  </body>
+</html>

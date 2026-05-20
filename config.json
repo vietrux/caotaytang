@@ -1,0 +1,132 @@
+{
+  "proxyPort": 8765,
+  "scrubBody": true,
+  "serverDecoy": "nginx",
+  "routes": {
+    "concak.own_lab.htb": "https://example.com/"
+  },
+  "stripHeaderGroups": {
+    "cloudflare": {
+      "label": "Cloudflare",
+      "enabled": true,
+      "items": [
+        "cf-ray",
+        "cf-cache-status",
+        "cf-request-id",
+        "cf-apo-via",
+        "cf-bgj",
+        "cf-polished",
+        "cf-worker",
+        "cf-connecting-ip",
+        "cf-ipcountry",
+        "cf-visitor"
+      ]
+    },
+    "cdnEdge": {
+      "label": "CDN / Edge",
+      "enabled": true,
+      "items": [
+        "expect-ct",
+        "report-to",
+        "nel",
+        "alt-svc",
+        "server-timing",
+        "x-served-by",
+        "x-cache",
+        "x-cache-hits",
+        "x-amz-cf-id",
+        "fastly-debug-digest",
+        "x-timer"
+      ]
+    },
+    "serverId": {
+      "label": "Server Identity",
+      "enabled": true,
+      "items": [
+        "server",
+        "x-powered-by",
+        "x-aspnet-version",
+        "x-aspnetmvc-version"
+      ]
+    },
+    "sharepoint": {
+      "label": "SharePoint / IIS",
+      "enabled": true,
+      "items": [
+        "microsoftsharepointteamservices",
+        "x-sharepointhealthscore",
+        "sprequestguid",
+        "sprequestduration",
+        "spiislatency",
+        "x-ms-invokeapp",
+        "request-id"
+      ]
+    },
+    "custom": {
+      "label": "Custom",
+      "enabled": true,
+      "items": []
+    }
+  },
+  "stripCookieGroups": {
+    "cloudflare": {
+      "label": "Cloudflare",
+      "enabled": true,
+      "items": [
+        "__cf_bm",
+        "__cfduid",
+        "__cflb",
+        "cf_clearance",
+        "_cfuvid"
+      ]
+    },
+    "custom": {
+      "label": "Custom",
+      "enabled": true,
+      "items": []
+    }
+  },
+  "bodyPatternGroups": {
+    "cloudflare": {
+      "label": "Cloudflare cleanup",
+      "enabled": true,
+      "patterns": [
+        {
+          "pattern": "https?://[a-z0-9.-]*cloudflareinsights\\.com[^\"'\\s<>]*",
+          "flags": "gi",
+          "sub": ""
+        },
+        {
+          "pattern": "<script[^>]+cloudflareinsights[^<]*</script>",
+          "flags": "gi",
+          "sub": ""
+        },
+        {
+          "pattern": "/cdn-cgi/[^\"'\\s<>)]*",
+          "flags": "g",
+          "sub": "/_"
+        },
+        {
+          "pattern": "\\sdata-cf-[a-z0-9-]+=\"[^\"]*\"",
+          "flags": "gi",
+          "sub": ""
+        },
+        {
+          "pattern": "\\scf-[a-z0-9-]+=\"[^\"]*\"",
+          "flags": "gi",
+          "sub": ""
+        },
+        {
+          "pattern": "cloudflare",
+          "flags": "gi",
+          "sub": "origin"
+        }
+      ]
+    },
+    "custom": {
+      "label": "Custom",
+      "enabled": true,
+      "patterns": []
+    }
+  }
+}
