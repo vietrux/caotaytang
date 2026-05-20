@@ -9,10 +9,10 @@ const TABS = ['home', 'routes', 'scrub', 'log'];
 function wireTabs() {
   document.querySelectorAll('nav button').forEach((b) => {
     b.addEventListener('click', () => {
-      document.querySelectorAll('nav button').forEach((x) => x.classList.remove('active'));
-      b.classList.add('active');
+      document.querySelectorAll('nav button').forEach((x) => x.removeAttribute('aria-current'));
+      b.setAttribute('aria-current', 'true');
       TABS.forEach((t) => {
-        $('#tab-' + t).style.display = t === b.dataset.tab ? '' : 'none';
+        $('#tab-' + t).hidden = (t !== b.dataset.tab);
       });
     });
   });

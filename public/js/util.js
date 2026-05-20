@@ -3,9 +3,10 @@ export const $ = (sel) => document.querySelector(sel);
 export const el = (tag, attrs = {}, ...kids) => {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
-    if (k === 'class') e.className = v;
-    else if (k === 'html') e.innerHTML = v;
+    if (k === 'html') e.innerHTML = v;
     else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v === false || v == null) continue;
+    else if (v === true) e.setAttribute(k, '');
     else e.setAttribute(k, v);
   }
   for (const k of kids) {
@@ -15,13 +16,10 @@ export const el = (tag, attrs = {}, ...kids) => {
   return e;
 };
 
-export const esc = (s) =>
-  String(s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
-
+let toastT;
 export function toast(msg, isErr) {
   const t = $('#toast');
-  t.textContent = msg;
-  t.classList.toggle('err', !!isErr);
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2400);
+  t.textContent = (isErr ? 'Error: ' : '') + msg;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => { t.textContent = ''; }, 2400);
 }

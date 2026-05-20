@@ -15,5 +15,5 @@ export const setPreview = (v) => { s.preview = v; };
 export const isDirty = () => s.dirty;
 export function markDirty(v) {
   s.dirty = v;
-  $('#save-bar').classList.toggle('on', v);
+  $('#save-bar').hidden = !v;
 }

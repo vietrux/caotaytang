@@ -23,7 +23,6 @@ export function renderRoutes() {
       updateMeta();
     });
     const del = el('button', {
-      class: 'btn ghost icon',
       title: `Remove route ${host}`,
       'aria-label': `Remove route ${host}`,
       onclick: () => {
@@ -32,13 +31,12 @@ export function renderRoutes() {
         renderRoutes();
         updateMeta();
       },
-    }, '×');
-    const row = el('div', { class: 'rt-row' },
-      el('div', { class: 'cell' }, hostIn),
-      el('div', { class: 'cell' }, tgtIn),
-      el('div', { class: 'cell action' }, del),
-    );
-    body.append(row);
+    }, 'Remove');
+    body.append(el('tr', {},
+      el('td', {}, hostIn),
+      el('td', {}, tgtIn),
+      el('td', {}, del),
+    ));
   }
   $('#proxy-port').value = cfg.proxyPort;
   $('#server-decoy').value = cfg.serverDecoy || 'nginx';
@@ -48,38 +46,32 @@ export function renderItemGroups(containerId, groupsObj, addLabel) {
   const c = $(containerId);
   c.innerHTML = '';
   for (const [gk, g] of Object.entries(groupsObj)) {
-    const det = el('details', { class: 'group' + (g.enabled ? '' : ' disabled') });
+    const det = el('details');
     if (g.enabled) det.setAttribute('open', '');
     const chk = el('input', { type: 'checkbox' });
     chk.checked = !!g.enabled;
     chk.addEventListener('click', (e) => e.stopPropagation());
     chk.addEventListener('change', () => {
       g.enabled = chk.checked;
-      det.classList.toggle('disabled', !chk.checked);
       markDirty(true);
       updateMeta();
     });
-    const summary = el('summary', {},
-      el('span', { class: 'chev' }, '›'),
-      chk,
-      el('span', { class: 'group-row' },
-        el('span', { class: 'label' }, g.label || gk),
-        el('span', { class: 'count' }, `${(g.items || []).length} ${addLabel}`),
-      ),
-    );
+    const countSpan = el('span', {}, ` (${(g.items || []).length} ${addLabel})`);
+    const summary = el('summary', {}, chk, ' ', g.label || gk, countSpan);
     det.append(summary);
 
     const ta = el('textarea', {
       rows: Math.max(3, Math.min(10, (g.items || []).length + 1)),
+      cols: 60,
       placeholder: 'one per line',
     }, (g.items || []).join('\n'));
     ta.addEventListener('input', () => {
       g.items = ta.value.split('\n').map((s) => s.trim()).filter(Boolean);
-      summary.querySelector('.count').textContent = `${g.items.length} ${addLabel}`;
+      countSpan.textContent = ` (${g.items.length} ${addLabel})`;
       markDirty(true);
       updateMeta();
     });
-    det.append(el('div', { class: 'body' }, ta));
+    det.append(el('div', {}, ta));
     c.append(det);
   }
 }
@@ -89,38 +81,36 @@ export function renderPatternGroups() {
   const c = $('#pattern-groups');
   c.innerHTML = '';
   for (const [gk, g] of Object.entries(cfg.bodyPatternGroups)) {
-    const det = el('details', { class: 'group' + (g.enabled ? '' : ' disabled') });
+    const det = el('details');
     if (g.enabled) det.setAttribute('open', '');
     const chk = el('input', { type: 'checkbox' });
     chk.checked = !!g.enabled;
     chk.addEventListener('click', (e) => e.stopPropagation());
     chk.addEventListener('change', () => {
       g.enabled = chk.checked;
-      det.classList.toggle('disabled', !chk.checked);
       markDirty(true);
       updateMeta();
     });
-    const summary = el('summary', {},
-      el('span', { class: 'chev' }, '›'),
-      chk,
-      el('span', { class: 'group-row' },
-        el('span', { class: 'label' }, g.label || gk),
-        el('span', { class: 'count' }, `${(g.patterns || []).length} patterns`),
-      ),
-    );
+    const countSpan = el('span', {}, ` (${(g.patterns || []).length} patterns)`);
+    const summary = el('summary', {}, chk, ' ', g.label || gk, countSpan);
     det.append(summary);
 
-    const body = el('div', { class: 'body' });
+    const tbl = el('table');
+    tbl.append(el('thead', {}, el('tr', {},
+      el('th', {}, 'Pattern'),
+      el('th', {}, 'Flags'),
+      el('th', {}, 'Replacement'),
+      el('th', {}, ''),
+    )));
+    const tb = el('tbody');
     (g.patterns || []).forEach((p, i) => {
-      const grid = el('div', { class: 'pat-grid' });
-      const patIn   = el('input', { type: 'text', value: p.pattern, placeholder: 'regex' });
-      const flagsIn = el('input', { type: 'text', value: p.flags || 'g', placeholder: 'flags' });
-      const subIn   = el('input', { type: 'text', value: p.sub != null ? p.sub : '', placeholder: 'replacement' });
+      const patIn   = el('input', { type: 'text', value: p.pattern, size: 40, placeholder: 'regex' });
+      const flagsIn = el('input', { type: 'text', value: p.flags || 'g', size: 4 });
+      const subIn   = el('input', { type: 'text', value: p.sub != null ? p.sub : '', size: 20, placeholder: 'replacement' });
       patIn.addEventListener('change', () => { g.patterns[i].pattern = patIn.value; markDirty(true); });
       flagsIn.addEventListener('change', () => { g.patterns[i].flags = flagsIn.value; markDirty(true); });
       subIn.addEventListener('change', () => { g.patterns[i].sub = subIn.value; markDirty(true); });
       const del = el('button', {
-        class: 'btn ghost icon',
         title: 'Remove pattern',
         'aria-label': 'Remove pattern',
         onclick: () => {
@@ -129,20 +119,23 @@ export function renderPatternGroups() {
           renderPatternGroups();
           updateMeta();
         },
-      }, '×');
-      grid.append(patIn, flagsIn, subIn, del);
-      body.append(grid);
+      }, 'Remove');
+      tb.append(el('tr', {},
+        el('td', {}, patIn),
+        el('td', {}, flagsIn),
+        el('td', {}, subIn),
+        el('td', {}, del),
+      ));
     });
-    body.append(el('button', {
-      class: 'btn ghost',
-      style: 'margin-top: var(--s-2);',
+    tbl.append(tb);
+    det.append(tbl);
+    det.append(el('p', {}, el('button', {
       onclick: () => {
         g.patterns.push({ pattern: '', flags: 'g', sub: '' });
         markDirty(true);
         renderPatternGroups();
       },
-    }, '+ Add pattern'));
-    det.append(body);
+    }, 'Add pattern')));
     c.append(det);
   }
 }
@@ -152,13 +145,13 @@ export function renderAutoPatterns() {
   const c = $('#auto-patterns');
   c.innerHTML = '';
   if (!preview.autoPatterns || !preview.autoPatterns.length) {
-    c.append(el('p', { class: 'hint' }, 'No routes configured — nothing to auto-generate.'));
+    c.append(el('p', {}, el('small', {}, 'No routes configured — nothing to auto-generate.')));
     return;
   }
   const tbl = el('table');
   tbl.append(el('thead', {}, el('tr', {},
     el('th', {}, 'Pattern'),
-    el('th', { style: 'width:60px' }, 'Flags'),
+    el('th', {}, 'Flags'),
     el('th', {}, 'Replacement'),
   )));
   const tb = el('tbody');
