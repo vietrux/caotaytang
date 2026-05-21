@@ -16,6 +16,8 @@ const DEFAULT = {
     'lab1_adapi.mylab': 'https://adapi.assol24.com',
     'lab1_admin.mylab': 'https://admin.assol24.com',
   },
+  tcpServices: [],
+  tcpAutoPortRange: [20000, 29999],
   stripHeaderGroups: {
     cloudflare: {
       label: 'Cloudflare',
@@ -93,6 +95,10 @@ function migrate(raw) {
       stripHeaderGroups: mergeGroups(DEFAULT.stripHeaderGroups, raw.stripHeaderGroups || {}),
       stripCookieGroups: mergeGroups(DEFAULT.stripCookieGroups, raw.stripCookieGroups || {}),
       bodyPatternGroups: mergeGroups(DEFAULT.bodyPatternGroups, raw.bodyPatternGroups || {}),
+      tcpServices: Array.isArray(raw.tcpServices) ? raw.tcpServices : [],
+      tcpAutoPortRange: Array.isArray(raw.tcpAutoPortRange) && raw.tcpAutoPortRange.length === 2
+        ? raw.tcpAutoPortRange
+        : DEFAULT.tcpAutoPortRange.slice(),
     };
     return out;
   }
@@ -218,6 +224,10 @@ class Config extends EventEmitter {
       stripCookies: cookies,
       bodyPatterns,
       autoPatternsPreview: autoPatterns, // for dashboard read-only display
+      tcpServices: Array.isArray(data.tcpServices) ? data.tcpServices : [],
+      tcpAutoPortRange: Array.isArray(data.tcpAutoPortRange) && data.tcpAutoPortRange.length === 2
+        ? data.tcpAutoPortRange
+        : [20000, 29999],
     };
   }
 

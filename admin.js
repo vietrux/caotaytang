@@ -4,6 +4,7 @@ const path = require('path');
 const config = require('./config');
 const logger = require('./logger');
 const agents = require('./agents');
+const tcp = require('./tcp');
 
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const MIME = {
@@ -71,8 +72,11 @@ function validateConfig(body) {
   if (!body || typeof body !== 'object') throw new Error('body must be object');
   if (!body.routes || typeof body.routes !== 'object') throw new Error('routes must be object');
   for (const [k, v] of Object.entries(body.routes)) {
-    if (typeof v !== 'string' || !/^https?:\/\//.test(v)) {
-      throw new Error(`route ${k} target must be http(s) URL`);
+    if (typeof v !== 'string' || !/^(https?|tcp|tls):\/\//.test(v)) {
+      throw new Error(`route ${k} target must be http(s)://, tcp://, or tls:// URL`);
+    }
+    if ((v.startsWith('tcp://') || v.startsWith('tls://')) && !/^(tcp|tls):\/\/[^/]+:\d{1,5}$/.test(v)) {
+      throw new Error(`route ${k}: tcp/tls target must be scheme://host:port`);
     }
   }
   if (body.proxyPort != null && (!Number.isInteger(body.proxyPort) || body.proxyPort < 1 || body.proxyPort > 65535)) {
@@ -81,6 +85,41 @@ function validateConfig(body) {
   validateItemGroups(body.stripHeaderGroups, 'stripHeaderGroups', 'items');
   validateItemGroups(body.stripCookieGroups, 'stripCookieGroups', 'items');
   validateItemGroups(body.bodyPatternGroups, 'bodyPatternGroups', 'patterns');
+  validateTcpServices(body.tcpServices);
+  validateTcpRange(body.tcpAutoPortRange);
+}
+
+function validateTcpServices(arr) {
+  if (arr == null) return;
+  if (!Array.isArray(arr)) throw new Error('tcpServices must be array');
+  const names = new Set();
+  const ports = new Set();
+  for (const s of arr) {
+    if (!s || typeof s !== 'object') throw new Error('tcpServices entry must be object');
+    if (typeof s.name !== 'string' || !s.name) throw new Error('tcpServices.name required');
+    if (names.has(s.name)) throw new Error(`tcpServices duplicate name: ${s.name}`);
+    names.add(s.name);
+    if (typeof s.target !== 'string' || !/^[^/\s:]+:\d{1,5}$/.test(s.target)) {
+      throw new Error(`tcpServices ${s.name}: target must be host:port`);
+    }
+    if (s.type !== 'tcp') throw new Error(`tcpServices ${s.name}: type must be "tcp"`);
+    if (s.listenPort != null) {
+      if (!Number.isInteger(s.listenPort) || s.listenPort < 1 || s.listenPort > 65535) {
+        throw new Error(`tcpServices ${s.name}: listenPort must be 1-65535 or null`);
+      }
+      if (ports.has(s.listenPort)) throw new Error(`tcpServices duplicate listenPort: ${s.listenPort}`);
+      ports.add(s.listenPort);
+    }
+  }
+}
+
+function validateTcpRange(r) {
+  if (r == null) return;
+  if (!Array.isArray(r) || r.length !== 2) throw new Error('tcpAutoPortRange must be [lo, hi]');
+  const [lo, hi] = r;
+  if (!Number.isInteger(lo) || !Number.isInteger(hi) || lo < 1 || hi > 65535 || lo >= hi) {
+    throw new Error('tcpAutoPortRange invalid');
+  }
 }
 
 async function handleApi(req, res, route) {
@@ -113,6 +152,10 @@ async function handleApi(req, res, route) {
       effectiveStripCookies: [...config.compiled.stripCookies].sort(),
       bodyPatternCount: config.compiled.bodyPatterns.length,
       proxyPort: config.compiled.proxyPort,
+      tcpServices: (config.data.tcpServices || []).map(s => ({
+        name: s.name, target: s.target, type: s.type, listenPort: s.listenPort,
+      })),
+      tcpRunning: tcp.status(),
     });
   }
   if (route === '/api/events' && req.method === 'GET') {

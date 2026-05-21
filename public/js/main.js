@@ -1,10 +1,10 @@
 import { $, toast } from './util.js';
 import { getCfg, markDirty } from './state.js';
 import { loadConfig, saveConfig, reloadProxy } from './api.js';
-import { renderRoutes, updateMeta } from './render.js';
+import { renderRoutes, renderServices, updateMeta } from './render.js';
 import { primeLog, connectSSE } from './log.js';
 
-const TABS = ['home', 'routes', 'scrub', 'log'];
+const TABS = ['home', 'routes', 'services', 'scrub', 'log'];
 
 function wireTabs() {
   document.querySelectorAll('nav button').forEach((b) => {
@@ -61,6 +61,42 @@ function wireForm() {
 
   $('#clear-log').addEventListener('click', () => {
     $('#log').innerHTML = '';
+  });
+
+  $('#add-svc').addEventListener('click', () => {
+    const name   = $('#new-svc-name').value.trim();
+    const target = $('#new-svc-target').value.trim();
+    const portIn = $('#new-svc-port').value.trim();
+    if (!name || !target) return toast('Name and target required', true);
+    if (!/^[^/\s:]+:\d{1,5}$/.test(target)) return toast('Target must be host:port', true);
+    const cfg = getCfg();
+    if (!cfg.tcpServices) cfg.tcpServices = [];
+    if (cfg.tcpServices.some(s => s.name === name)) return toast('Duplicate name', true);
+    cfg.tcpServices.push({
+      name,
+      target,
+      type: 'tcp',
+      listenPort: portIn ? parseInt(portIn, 10) : null,
+    });
+    $('#new-svc-name').value = '';
+    $('#new-svc-target').value = '';
+    $('#new-svc-port').value = '';
+    markDirty(true);
+    renderServices();
+    updateMeta();
+  });
+
+  $('#auto-port-lo').addEventListener('input', () => {
+    const cfg = getCfg();
+    cfg.tcpAutoPortRange = cfg.tcpAutoPortRange || [20000, 29999];
+    cfg.tcpAutoPortRange[0] = parseInt($('#auto-port-lo').value, 10) || cfg.tcpAutoPortRange[0];
+    markDirty(true);
+  });
+  $('#auto-port-hi').addEventListener('input', () => {
+    const cfg = getCfg();
+    cfg.tcpAutoPortRange = cfg.tcpAutoPortRange || [20000, 29999];
+    cfg.tcpAutoPortRange[1] = parseInt($('#auto-port-hi').value, 10) || cfg.tcpAutoPortRange[1];
+    markDirty(true);
   });
 }
 

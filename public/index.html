@@ -22,6 +22,7 @@
     <nav>
       <button data-tab="home" aria-current="true">Home</button>
       <button data-tab="routes">Routes</button>
+      <button data-tab="services">TCP Services</button>
       <button data-tab="scrub">Scrubbing</button>
       <button data-tab="log">Live Log</button>
     </nav>
@@ -65,17 +66,26 @@ open http://127.0.0.1:9000</pre>
 
         <table>
           <thead>
-            <tr><th>Host</th><th>Target</th><th></th></tr>
+            <tr><th>Host (SNI)</th><th>Target</th><th>Kind</th><th></th></tr>
           </thead>
           <tbody id="routes-body"></tbody>
           <tfoot>
             <tr>
               <td><input type="text" id="new-host" aria-label="New vhost" placeholder="*.own_lab.htb or exact.host" /></td>
-              <td><input type="url" id="new-target" aria-label="Upstream URL" placeholder="https://upstream.example.com" /></td>
+              <td><input type="text" id="new-target" aria-label="Upstream" placeholder="https://upstream | tls://host:443 | tcp://host:22" /></td>
+              <td></td>
               <td><button id="add-route">Add</button></td>
             </tr>
           </tfoot>
         </table>
+        <p>
+          <small>
+            Target scheme decides handling:
+            <code>http(s)://</code> = HTTP/WS scrub.
+            <code>tls://host:port</code> = raw TLS passthrough (no decrypt).
+            <code>tcp://host:port</code> = terminate TLS at proxy, forward plain.
+          </small>
+        </p>
 
         <fieldset>
           <legend>Proxy settings</legend>
@@ -86,6 +96,46 @@ open http://127.0.0.1:9000</pre>
               Public port is used in auto-generated URL rewrites only — actual
               listen port is set by <code>PORT</code> env var.
             </small>
+          </p>
+        </fieldset>
+      </section>
+
+      <section id="tab-services" hidden>
+        <h2>Plain-TCP Services</h2>
+        <p>
+          Each entry binds a dedicated TCP listener and pipes raw bytes to
+          target. No SNI peek, no scrubbing. For SSH / DB / SMTP / any
+          non-TLS protocol. Empty <code>listenPort</code> auto-assigns in
+          range <span id="auto-range"></span>.
+        </p>
+
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Target</th><th>Type</th><th>Listen port</th><th></th></tr>
+          </thead>
+          <tbody id="services-body"></tbody>
+          <tfoot>
+            <tr>
+              <td><input type="text" id="new-svc-name" placeholder="ssh-lab" /></td>
+              <td><input type="text" id="new-svc-target" placeholder="10.0.0.1:22" /></td>
+              <td>tcp</td>
+              <td><input type="number" id="new-svc-port" min="1" max="65535" placeholder="auto" /></td>
+              <td><button id="add-svc">Add</button></td>
+            </tr>
+          </tfoot>
+        </table>
+        <p>
+          <small>
+            Connect example: <code>ssh -p &lt;listenPort&gt; user@&lt;proxy-host&gt;</code>.
+            Bound listeners shown in <em>Running</em> column after save.
+          </small>
+        </p>
+
+        <fieldset>
+          <legend>Auto-port range</legend>
+          <p>
+            <label>Low <input type="number" id="auto-port-lo" min="1" max="65535" /></label>
+            <label>High <input type="number" id="auto-port-hi" min="1" max="65535" /></label>
           </p>
         </fieldset>
       </section>

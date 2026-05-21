@@ -23,6 +23,8 @@ const { agentFor } = require('./agents');
 const config = require('./config');
 const logger = require('./logger');
 const startAdmin = require('./admin');
+const mux = require('./mux');
+const tcp = require('./tcp');
 
 const PORT       = parseInt(process.env.PORT || '8765', 10);
 const ADMIN_PORT = parseInt(process.env.ADMIN_PORT || '9000', 10);
@@ -189,20 +191,37 @@ proxy.on('error', (err, req, res) => {
 });
 
 // Route resolution: exact host match wins, then longest "*.suffix" wildcard.
-function resolveTarget(req) {
-  const raw = (req.headers.host || '').toLowerCase();
-  const host = raw.split(':')[0];
+function lookupRoute(host) {
   const routes = config.compiled.routes;
   if (routes[host]) return routes[host];
   let bestKey = null;
   for (const k of Object.keys(routes)) {
     if (!k.startsWith('*.')) continue;
-    const suffix = k.slice(1); // ".own_lab.htb"
+    const suffix = k.slice(1);
     if (host.endsWith(suffix) && (!bestKey || suffix.length > bestKey.length - 1)) {
       bestKey = k;
     }
   }
   return bestKey ? routes[bestKey] : null;
+}
+
+function resolveTarget(req) {
+  const raw = (req.headers.host || '').toLowerCase();
+  const host = raw.split(':')[0];
+  const target = lookupRoute(host);
+  // HTTP path only handles http(s) targets; raw tcp/tls targets dispatched at mux layer.
+  if (!target) return null;
+  if (target.startsWith('http://') || target.startsWith('https://')) return target;
+  return null;
+}
+
+function resolveSNI(sni) {
+  if (!sni) return null;
+  const target = lookupRoute(sni);
+  if (!target) return null;
+  if (target.startsWith('tls://')) return { kind: 'tls-passthrough', target: target.slice(6) };
+  if (target.startsWith('tcp://')) return { kind: 'tcp-terminate',  target: target.slice(6) };
+  return { kind: 'http' };
 }
 
 const tlsOptions = {
@@ -231,16 +250,34 @@ server.on('upgrade', (req, socket, head) => {
   proxy.ws(req, socket, head, { target, agent: agentFor(target) });
 });
 
+function reconcileTcp() {
+  tcp.reconcile(
+    config.data.tcpServices || [],
+    config.compiled.tcpAutoPortRange,
+    () => { config.write(config.data); },
+  );
+}
+
 config.on('change', d => {
   console.log('[config] reloaded');
   logger.log({ event: 'config-reload', routes: Object.keys(d.routes).length });
+  reconcileTcp();
 });
 
-server.listen(PORT, () => {
-  console.log(`CAOTAYTANG · multi-vhost TLS proxy on :${PORT}  (SCRUB_BODY=${config.compiled.scrubBody ? 'on' : 'off'})`);
-  for (const [host, target] of Object.entries(config.compiled.routes)) {
-    console.log(`  https://${host}:${PORT}  ->  ${target}`);
-  }
+mux.start({
+  port: PORT,
+  tlsOptions,
+  httpsServer: server,
+  resolve: resolveSNI,
 });
+
+console.log(`CAOTAYTANG · SNI-mux TLS proxy on :${PORT}  (SCRUB_BODY=${config.compiled.scrubBody ? 'on' : 'off'})`);
+for (const [host, target] of Object.entries(config.compiled.routes)) {
+  const kind = target.startsWith('tls://') ? 'tls-passthrough' :
+               target.startsWith('tcp://') ? 'tcp-terminate'   : 'http';
+  console.log(`  ${host}  [${kind}]  ->  ${target}`);
+}
+
+reconcileTcp();
 
 startAdmin(ADMIN_PORT);

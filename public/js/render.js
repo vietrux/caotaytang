@@ -1,13 +1,22 @@
 import { $, el } from './util.js';
 import { getCfg, getPreview, markDirty } from './state.js';
 
+function targetKind(t) {
+  if (!t) return '?';
+  if (t.startsWith('tls://')) return 'tls-passthrough';
+  if (t.startsWith('tcp://')) return 'tcp-terminate';
+  if (t.startsWith('http://') || t.startsWith('https://')) return 'http';
+  return '?';
+}
+
 export function renderRoutes() {
   const cfg = getCfg();
   const body = $('#routes-body');
   body.innerHTML = '';
   for (const [host, target] of Object.entries(cfg.routes)) {
     const hostIn = el('input', { type: 'text', value: host, 'aria-label': 'Vhost' });
-    const tgtIn  = el('input', { type: 'url',  value: target, 'aria-label': 'Upstream' });
+    const tgtIn  = el('input', { type: 'text', value: target, 'aria-label': 'Upstream' });
+    const kindCell = el('td', {}, el('code', {}, targetKind(target)));
     hostIn.addEventListener('change', () => {
       const v = hostIn.value.trim();
       if (!v || v === host) return;
@@ -19,6 +28,7 @@ export function renderRoutes() {
     });
     tgtIn.addEventListener('change', () => {
       cfg.routes[host] = tgtIn.value.trim();
+      kindCell.firstChild.textContent = targetKind(tgtIn.value.trim());
       markDirty(true);
       updateMeta();
     });
@@ -35,11 +45,48 @@ export function renderRoutes() {
     body.append(el('tr', {},
       el('td', {}, hostIn),
       el('td', {}, tgtIn),
+      kindCell,
       el('td', {}, del),
     ));
   }
   $('#proxy-port').value = cfg.proxyPort;
   $('#server-decoy').value = cfg.serverDecoy || 'nginx';
+}
+
+export function renderServices() {
+  const cfg = getCfg();
+  const body = $('#services-body');
+  if (!body) return;
+  body.innerHTML = '';
+  const list = cfg.tcpServices || (cfg.tcpServices = []);
+  list.forEach((s, i) => {
+    const nameIn = el('input', { type: 'text', value: s.name });
+    const tgtIn  = el('input', { type: 'text', value: s.target, placeholder: 'host:port' });
+    const portTxt = el('code', {}, s.listenPort != null ? String(s.listenPort) : 'auto');
+    nameIn.addEventListener('change', () => { s.name = nameIn.value.trim(); markDirty(true); });
+    tgtIn.addEventListener('change',  () => { s.target = tgtIn.value.trim(); markDirty(true); });
+    const del = el('button', {
+      title: 'Remove service',
+      onclick: () => {
+        list.splice(i, 1);
+        markDirty(true);
+        renderServices();
+        updateMeta();
+      },
+    }, 'Remove');
+    body.append(el('tr', {},
+      el('td', {}, nameIn),
+      el('td', {}, tgtIn),
+      el('td', {}, 'tcp'),
+      el('td', {}, portTxt),
+      el('td', {}, del),
+    ));
+  });
+  const range = cfg.tcpAutoPortRange || [20000, 29999];
+  $('#auto-port-lo').value = range[0];
+  $('#auto-port-hi').value = range[1];
+  const ar = $('#auto-range');
+  if (ar) ar.textContent = `${range[0]}–${range[1]}`;
 }
 
 export function renderItemGroups(containerId, groupsObj, addLabel) {
@@ -172,13 +219,15 @@ export function updateMeta() {
   const hdrCount  = Object.values(cfg.stripHeaderGroups).reduce((a, g) => a + (g.enabled ? g.items.length : 0), 0);
   const cookCount = Object.values(cfg.stripCookieGroups).reduce((a, g) => a + (g.enabled ? g.items.length : 0), 0);
   const patCount  = Object.values(cfg.bodyPatternGroups).reduce((a, g) => a + (g.enabled ? g.patterns.length : 0), 0);
+  const svcCount  = (cfg.tcpServices || []).length;
   $('#meta').textContent =
-    `${routes} routes · ${hdrCount} headers · ${cookCount} cookies · ${patCount} body patterns · scrub ${cfg.scrubBody ? 'on' : 'off'}`;
+    `${routes} routes · ${svcCount} tcp svc · ${hdrCount} headers · ${cookCount} cookies · ${patCount} body patterns · scrub ${cfg.scrubBody ? 'on' : 'off'}`;
 }
 
 export function render() {
   const cfg = getCfg();
   renderRoutes();
+  renderServices();
   $('#scrub-body').checked = !!cfg.scrubBody;
   renderItemGroups('#header-groups', cfg.stripHeaderGroups, 'headers');
   renderItemGroups('#cookie-groups', cfg.stripCookieGroups, 'cookies');
